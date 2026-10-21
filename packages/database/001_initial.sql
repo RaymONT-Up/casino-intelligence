@@ -1,0 +1,16 @@
+CREATE TABLE casinos (id text PRIMARY KEY, name text NOT NULL, description text NOT NULL, current_version_id uuid);
+CREATE TABLE snapshots (id uuid PRIMARY KEY, casino_id text NOT NULL REFERENCES casinos(id), capture_key text NOT NULL, content_hash text NOT NULL, raw jsonb NOT NULL, source_url text NOT NULL, captured_at timestamptz NOT NULL, UNIQUE(casino_id,capture_key));
+CREATE TABLE extractions (id uuid PRIMARY KEY, snapshot_id uuid NOT NULL REFERENCES snapshots(id), method text NOT NULL, normalized jsonb, errors jsonb NOT NULL, UNIQUE(snapshot_id,method));
+CREATE TABLE proposals (id uuid PRIMARY KEY, casino_id text NOT NULL REFERENCES casinos(id), snapshot_id uuid NOT NULL REFERENCES snapshots(id), baseline_id uuid, candidate jsonb NOT NULL, provenance jsonb NOT NULL, changes jsonb NOT NULL, identity text NOT NULL UNIQUE, status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX review_queue ON proposals(status,created_at,id);
+CREATE TABLE decisions (id uuid PRIMARY KEY, proposal_id uuid NOT NULL UNIQUE REFERENCES proposals(id), decision text NOT NULL CHECK(decision IN ('approved','rejected')), actor text NOT NULL, rationale text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE versions (id uuid PRIMARY KEY, casino_id text NOT NULL REFERENCES casinos(id), proposal_id uuid NOT NULL UNIQUE REFERENCES proposals(id), previous_id uuid REFERENCES versions(id), offer jsonb NOT NULL, provenance jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE casinos ADD CONSTRAINT current_version_fk FOREIGN KEY(current_version_id) REFERENCES versions(id);
+ALTER TABLE proposals ADD CONSTRAINT baseline_fk FOREIGN KEY(baseline_id) REFERENCES versions(id);
+CREATE TABLE audit (id uuid PRIMARY KEY, casino_id text NOT NULL REFERENCES casinos(id), action text NOT NULL, actor text NOT NULL, details jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE FUNCTION prevent_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Immutable evidence/history cannot be modified'; END; $$;
+CREATE TRIGGER immutable_snapshots BEFORE UPDATE OR DELETE ON snapshots FOR EACH ROW EXECUTE FUNCTION prevent_mutation();
+CREATE TRIGGER immutable_extractions BEFORE UPDATE OR DELETE ON extractions FOR EACH ROW EXECUTE FUNCTION prevent_mutation();
+CREATE TRIGGER immutable_decisions BEFORE UPDATE OR DELETE ON decisions FOR EACH ROW EXECUTE FUNCTION prevent_mutation();
+CREATE TRIGGER immutable_versions BEFORE UPDATE OR DELETE ON versions FOR EACH ROW EXECUTE FUNCTION prevent_mutation();
+CREATE TRIGGER immutable_audit BEFORE UPDATE OR DELETE ON audit FOR EACH ROW EXECUTE FUNCTION prevent_mutation();

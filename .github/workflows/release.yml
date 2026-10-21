@@ -1,0 +1,30 @@
+name: Build approved release artifact
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    # Configure required reviewers for this environment in repository settings.
+    environment: release-approval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check && pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          include-hidden-files: true
+          path: |
+            apps/web/.next/
+            !apps/web/.next/cache/
+            !apps/web/.next/trace
+      # No remote deployment exists yet. See docs/deployment.md.
