@@ -83,6 +83,10 @@ test("real-source workflow keeps pending observations private and records decisi
   await expect(
     page.getByText("Test Operator 0 A", { exact: true }).first(),
   ).toBeVisible();
+  await expect(page).toHaveTitle("Bet99 · Casino Intelligence");
+  const missing = await page.goto("/casinos/unknown-slug");
+  expect(missing?.status()).toBe(404);
+  expect(await page.title()).not.toContain("unknown-slug");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(

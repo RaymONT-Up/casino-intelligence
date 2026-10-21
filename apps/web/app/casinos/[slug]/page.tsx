@@ -1,15 +1,23 @@
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, type PublishedResearch } from "../../../lib/server";
+import { findOperator } from "../../../lib/operators";
 import { SourceStamp } from "../../shared";
 export const dynamic = "force-dynamic";
+const research = cache(() => api<PublishedResearch>("/research"));
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return { title: slug, alternates: { canonical: `/casinos/${slug}` } };
+  const found = findOperator(await research(), slug);
+  if (!found) notFound();
+  return {
+    title: found.operator.name,
+    alternates: { canonical: `/casinos/${slug}` },
+  };
 }
 export default async function Detail({
   params,
@@ -17,11 +25,10 @@ export default async function Detail({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const records = await api<PublishedResearch>("/research");
-  const directory = records.find((r) => r.payload.kind === "directory");
-  if (!directory || directory.payload.kind !== "directory") notFound();
-  const operator = directory.payload.operators.find((o) => o.slug === slug);
-  if (!operator) notFound();
+  const records = await research();
+  const found = findOperator(records, slug);
+  if (!found) notFound();
+  const { directory, operator } = found;
   const documents =
     slug === "northstar-bets"
       ? records.filter((r) => r.sourceId.startsWith("northstar-"))
