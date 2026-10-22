@@ -51,6 +51,19 @@ PostgreSQL can hold this small snapshot volume; larger archives should use objec
 storage with immutable keys and database references. Public APIs still read approved
 records only. Production requires SSO/RBAC, least-privilege DB roles, backups and monitoring.
 
+## Search indexing switch
+
+Indexing is **off by default** and stays off for any value other than the exact string
+`SEO_INDEXING=enabled`. When enabled it also requires `APP_ORIGIN` to be a public https
+origin: a plain DNS name (no IP address, single-label or trailing-dot host, reserved zones such
+as `.local`, `.internal`, `.localhost`, `.test`, `.example`, and no credentials); otherwise it fails closed (still noindex, `Disallow: /`) and `/sitemap.xml` reports
+the misconfiguration instead of returning an empty list. When on: `robots.txt` allows
+crawling except `/admin` and `/api/`, `sitemap.xml` lists only published operators with the
+real capture time, and the directory and operator pages emit JSON-LD built from confirmed
+fields only (brand name, legal operator as listed by iGO, capture time). No ratings, offers,
+licence or bonus claims are emitted. The switch is read per request. Enabling it in any
+reachable environment is an owner release decision. Logic: `apps/web/lib/seo.ts`.
+
 ## Current limits
 
 - Fixed trusted source allowlist; no arbitrary user-supplied crawl URL.

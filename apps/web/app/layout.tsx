@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ScanLine, ArrowUpRight } from "lucide-react";
 import "./globals.css";
-export const metadata: Metadata = {
+import { indexingMode, robotsMeta } from "../lib/seo";
+// Read per request so the indexing switch is not frozen at build time.
+export const dynamic = "force-dynamic";
+export const generateMetadata = (): Metadata => ({
   metadataBase: new URL(process.env.APP_ORIGIN ?? "http://127.0.0.1:3000"),
   title: {
     default: "Casino Intelligence — Ontario source records",
@@ -10,8 +13,8 @@ export const metadata: Metadata = {
   },
   description:
     "Ontario operator records with original sources, capture dates and document evidence.",
-  robots: { index: false, follow: false },
-};
+  robots: robotsMeta(indexingMode()),
+});
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

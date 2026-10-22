@@ -70,6 +70,13 @@ container fails and records a failed snapshot in the history; build with
 Stop with `docker compose --profile app down` (do not add `-v`: it deletes the database
 volume). See [CI/CD boundaries](docs/deployment.md).
 
+### Search indexing
+
+Search indexing is off by default (`noindex`, `Disallow: /`). `SEO_INDEXING=enabled` with a
+public https `APP_ORIGIN` turns on `robots.txt` rules, `sitemap.xml` and structured data
+built from published data; see [architecture](docs/architecture.md). Enabling it for a
+reachable environment is a release decision.
+
 ### Troubleshooting
 
 | Symptom                                      | Cause and fix                                                                                        |

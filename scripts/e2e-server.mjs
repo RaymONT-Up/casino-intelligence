@@ -12,6 +12,7 @@ const env = {
   API_PORT: "4001",
   API_URL: "http://127.0.0.1:4001",
   APP_ORIGIN: "http://127.0.0.1:3001",
+  SEO_INDEXING: "disabled",
 };
 const children = [];
 let closing = false;

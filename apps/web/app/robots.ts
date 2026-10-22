@@ -1,3 +1,7 @@
+import { buildRobots, indexingMode } from "../lib/seo";
+export const dynamic = "force-dynamic";
 export default function robots() {
-  return { rules: { userAgent: "*", disallow: "/" } };
+  const mode = indexingMode();
+  if (!mode.on && mode.reason) console.warn(mode.reason);
+  return buildRobots(mode);
 }

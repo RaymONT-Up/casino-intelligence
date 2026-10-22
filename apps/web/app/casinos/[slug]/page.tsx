@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { api, type PublishedResearch } from "../../../lib/server";
 import { findOperator } from "../../../lib/operators";
 import { SourceStamp } from "../../shared";
+import { JsonLd } from "../../json-ld";
+import { indexingMode, operatorJsonLd } from "../../../lib/seo";
 export const dynamic = "force-dynamic";
 const research = cache(() => api<PublishedResearch>("/research"));
 export async function generateMetadata({
@@ -29,12 +31,15 @@ export default async function Detail({
   const found = findOperator(records, slug);
   if (!found) notFound();
   const { directory, operator } = found;
+  const mode = indexingMode();
+  const data = mode.on ? operatorJsonLd(mode.origin, records, slug) : null;
   const documents =
     slug === "northstar-bets"
       ? records.filter((r) => r.sourceId.startsWith("northstar-"))
       : [];
   return (
     <section className="page-section">
+      {data && <JsonLd data={data} />}
       <Link className="text-link" href="/casinos">
         ← Operator directory
       </Link>
