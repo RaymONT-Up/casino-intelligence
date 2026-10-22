@@ -1,6 +1,7 @@
 # CI/CD status
 
-CI configuration is included; a green GitHub run is not claimed until pushed and run.
+CI configuration is included. `Quality gates` completed successfully on GitHub Actions for
+commit `9e754a8` (push to `main`, 2026-10-21 UTC); later commits are not claimed until their runs finish.
 `Quality gates` installs a frozen lockfile, migrates a disposable PostgreSQL service,
 runs types/lint/format/unit/DB/build/browser checks and preserves browser failure traces.
 Set that job as a required branch-protection check; a workflow file cannot enable this.
