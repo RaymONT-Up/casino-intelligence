@@ -53,6 +53,23 @@ pnpm start
 
 `pnpm start` runs the API and a production Next.js build together.
 
+### Run in Docker (optional)
+
+After `pnpm setup` (creates the private `.env`) and with the database service available:
+
+```sh
+docker compose --profile app up --build
+```
+
+This builds one local image and starts `migrate`, `api` and `web`. The site is on
+`http://127.0.0.1:3000` (set `WEB_PORT` if the port is taken; open the site on the same
+origin). The API is not published to the host. Secrets come from `.env` at run time, not from
+the image. Chromium is not included by default: collecting the NorthStar terms page inside the
+container fails and records a failed snapshot in the history; build with
+`INSTALL_CHROMIUM=true` to include it (untested).
+Stop with `docker compose --profile app down` (do not add `-v`: it deletes the database
+volume). See [CI/CD boundaries](docs/deployment.md).
+
 ### Troubleshooting
 
 | Symptom                                      | Cause and fix                                                                                        |

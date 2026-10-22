@@ -1,3 +1,8 @@
+x-app-build: &app-build
+  context: .
+  args:
+    INSTALL_CHROMIUM: ${INSTALL_CHROMIUM:-false}
+
 services:
   db:
     image: postgres:17-alpine
@@ -14,5 +19,75 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  # Application services are opt-in: docker compose --profile app up --build
+  # They read secrets from the private .env created by `pnpm setup`.
+  migrate:
+    profiles: [app]
+    build: *app-build
+    image: casino-intelligence:local
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://casino:local-demo-only@db:5432/casino_intelligence
+    command: ["node_modules/.bin/tsx", "packages/database/migrate.ts"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    profiles: [app]
+    build: *app-build
+    image: casino-intelligence:local
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://casino:local-demo-only@db:5432/casino_intelligence
+      API_HOST: 0.0.0.0
+      API_PORT: "4000"
+    command: ["node_modules/.bin/tsx", "apps/api/src/server.ts"]
+    # Not published to the host: the web container reaches it on the compose network.
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    profiles: [app]
+    build: *app-build
+    image: casino-intelligence:local
+    env_file: .env
+    environment:
+      API_URL: http://api:4000
+      # Must equal the origin you open in the browser (exact match is enforced).
+      APP_ORIGIN: http://127.0.0.1:${WEB_PORT:-3000}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/workflow').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   casino-data:

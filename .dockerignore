@@ -1,0 +1,17 @@
+.git
+.github
+.claude
+.pnpm-store
+.local
+**/node_modules
+apps/web/.next
+**/.env
+**/.env.*
+!**/.env.example
+test-results
+playwright-report
+coverage
+*.tsbuildinfo
+docs
+Dockerfile
+.dockerignore
