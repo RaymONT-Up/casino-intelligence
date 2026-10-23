@@ -1,18 +1,75 @@
 # Casino Intelligence
 
-Ontario casino research with original-source capture and reviewed publication.
-TypeScript, Next.js/React, Fastify, PostgreSQL 17, Drizzle, Zod and Playwright.
+**Evidence-first research and publication workflow for regulated online-casino data.**
 
-The live collection adapters read the official iGaming Ontario directory and
-NorthStar Bets public website/terms. The bounded directory sample tracks 888 Casino,
-Bet99, BetMGM Casino, Betty and NorthStar Bets. Other provinces and current AGCO
-registration verification are not implemented. No bonus amounts are invented.
+Casino Intelligence turns public-source research into a reviewable, auditable record:
+collect a source, preserve the exact capture, extract only supported claims, compare the
+observation with the approved version, and publish only after an authenticated human
+decision.
+
+It is deliberately not an affiliate site, a bonus scraper, or an LLM that silently fills
+gaps. The product boundary is the interesting part: **a public page can only read the
+current approved version**.
+
+![Public casino directory](docs/screenshots/research-home.png)
+
+_Public directory view. The screenshot uses synthetic e2e data to demonstrate the UI._
+
+## Why this project exists
+
+Research systems often blur together “the source said this”, “we fetched this”, and
+“someone decided to publish this”. That makes corrections hard to explain and stale data
+easy to ship.
+
+This project keeps those states separate:
+
+- immutable source captures with URL, timestamp, method, hash and parser output;
+- field-level provenance and evidence locations for every claim;
+- pending proposals with a baseline and an explicit diff;
+- authenticated approve/reject decisions with a rationale;
+- atomic publication pointers and stale-review conflict detection;
+- visible failures, unknowns and rejected proposals instead of silent fallbacks.
+
+The current vertical slice covers a bounded Ontario sample: the iGaming Ontario operator
+directory plus NorthStar Bets public website/terms. It is a research prototype, not a
+claim that every operator, province or registration status has been verified.
+
+![Source collection and review workspace](docs/screenshots/research-workspace.png)
+
+_Review workspace. The screenshot uses synthetic e2e data; it does not represent a live
+collection run._
+
+## What is implemented
+
+| Capability        | Implementation                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| Source collection | Allow-listed HTTP and Playwright adapters for real public sources                               |
+| Evidence          | Raw HTML/rendered DOM, SHA-256, capture time, final URL, parser version and locations           |
+| Review            | Pending / approved / rejected / all queues with field-level published-vs-observed diffs         |
+| Publication       | Human rationale required; decision, status and current pointer commit atomically                |
+| Concurrency       | Stale approvals return a conflict; reviewed proposals are never silently rebased                |
+| Idempotency       | Capture keys and semantic proposals deduplicate retries; rejected proposals are not resurrected |
+| Public API        | Reads approved records only; raw source content is not served to the browser                    |
+| SEO               | Off by default; when enabled, only confirmed published fields are emitted                       |
+
+## Tech stack
+
+- TypeScript, strict mode, pnpm
+- Next.js 16 / React 19 for the public directory and editor workspace
+- Fastify 5 for collection and publication commands
+- PostgreSQL 17 + Drizzle ORM for immutable evidence and review history
+- Zod for external-input validation
+- Playwright for browser capture and end-to-end tests
+- Vitest, ESLint, Prettier and Docker Compose
+
+The architecture keeps business logic in `packages/` rather than React components or
+route handlers. PostgreSQL is the source of truth; the web app is a reader of approved
+records and a thin authenticated review client.
 
 ## Run locally
 
-Requirements: Node 24, pnpm 11.21.0, Docker Desktop (PostgreSQL only), and network
-access for the first collection. Ports 3000 (web), 4000 (API) and 54329 (database,
-bound to localhost) must be free.
+Requirements: Node 24, pnpm 11.21.0, Docker Desktop, and network access for the first
+real collection.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -24,101 +81,66 @@ pnpm collect:real
 pnpm dev
 ```
 
-`pnpm collect:real` makes real requests to three allow-listed public sources
-(iGaming Ontario directory, NorthStar Bets site and terms). It only creates pending
-proposals; it never publishes.
+Open <http://127.0.0.1:3000>. Sign in at `/admin` with `ADMIN_PASSWORD` from the private
+`.env` created by `pnpm setup`.
 
-Open http://127.0.0.1:3000; review observations at `/admin`. Sign in with
-`ADMIN_PASSWORD` from the private `.env` generated by setup. Collection creates
-pending proposals; public pages stay empty until the first explicit approval.
-Inspect each source and enter a rationale before approving. No automatic publication.
-`pnpm db:seed` is retained only for archived fixture history; do not run it to
-populate the current application. Fixture routes are disabled in the app server.
+`pnpm collect:real` makes requests only to the configured allow-listed public sources and
+creates pending proposals. It never publishes. Review the saved evidence, enter a
+rationale, then approve or reject the proposal. Until approval, public pages remain on
+the previous approved version.
 
-### First run, step by step
-
-1. Open `/admin` and sign in. The **Pending** tab lists one proposal per source.
-2. Select a proposal, open **Capture evidence** and **Read saved copies**, and compare
-   the published and observed values.
-3. Type a rationale (at least 10 characters) and press **Approve & publish** or
-   **Reject change**.
-4. Open `/` and `/casinos`: approved sources now appear; rejected ones never do.
-
-### Production-like local run
+For a production-like local run:
 
 ```sh
 pnpm build
 pnpm start
 ```
 
-`pnpm start` runs the API and a production Next.js build together.
-
-### Run in Docker (optional)
-
-After `pnpm setup` (creates the private `.env`) and with the database service available:
+## Engineering checks
 
 ```sh
-docker compose --profile app up --build
+pnpm check             # agent contracts, types, lint, formatting, unit tests
+pnpm test:integration  # isolated PostgreSQL schemas
+pnpm test:e2e          # browser flow against isolated local data
+pnpm verify            # all required gates plus build
 ```
 
-This builds one local image and starts `migrate`, `api` and `web`. The site is on
-`http://127.0.0.1:3000` (set `WEB_PORT` if the port is taken; open the site on the same
-origin). The API is not published to the host. Secrets come from `.env` at run time, not from
-the image. Chromium is not included by default: collecting the NorthStar terms page inside the
-container fails and records a failed snapshot in the history; build with
-`INSTALL_CHROMIUM=true` to include it (untested).
-Stop with `docker compose --profile app down` (do not add `-v`: it deletes the database
-volume). See [CI/CD boundaries](docs/deployment.md).
+The tests use synthetic inputs in isolated schemas. They do not overwrite collected data
+or call casino sites.
 
-### Search indexing
+## Architecture
 
-Search indexing is off by default (`noindex`, `Disallow: /`). `SEO_INDEXING=enabled` with a
-public https `APP_ORIGIN` turns on `robots.txt` rules, `sitemap.xml` and structured data
-built from published data; see [architecture](docs/architecture.md). Enabling it for a
-reachable environment is a release decision.
+```mermaid
+flowchart LR
+  A[iGaming Ontario directory] --> C[Source adapters]
+  B[NorthStar public documents] --> C
+  C --> S[Immutable PostgreSQL capture]
+  S --> X[Parser + validation]
+  X --> D[Compare with approved baseline]
+  D --> Q[Pending proposal]
+  Q --> R[Authenticated human review]
+  R --> P[Atomic decision + publication pointer]
+  P --> W[Next.js public records]
+```
 
-### Troubleshooting
+The full boundary decisions and scaling notes are in [`docs/architecture.md`](docs/architecture.md).
+The reproducible walkthrough is in [`docs/demo.md`](docs/demo.md), and source-specific
+collection details are in [`docs/real-sources.md`](docs/real-sources.md).
 
-| Symptom                                      | Cause and fix                                                                                        |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Public pages are empty                       | Nothing is approved yet: approve proposals in `/admin`                                               |
-| `Another next dev server is already running` | Stop `pnpm dev` (or any dev server in `apps/web`) before `pnpm test:e2e` / `pnpm verify`             |
-| Port 3000 or 4000 busy                       | Another project uses it; stop it or change `API_PORT`, `API_URL`, `APP_ORIGIN` in `.env`             |
-| Database connection refused                  | `docker compose up -d --wait`, then `pnpm db:migrate`                                                |
-| Browser test cannot launch                   | `pnpm exec playwright install chromium`                                                              |
-| Many `e2e_*` schemas in the local database   | Known issue: the E2E cleanup does not always run. They are disposable; remove them only deliberately |
+## Honest scope and next steps
 
-## Verification and engineering agents
+This repository intentionally does not include live LLM extraction, arbitrary URL
+crawling, CAPTCHA bypass, accounts or deposits, Canadian-location verification, affiliate
+tracking, or automatic publication. Those are product and risk decisions, not features to
+smuggle into a prototype.
 
-`pnpm verify` runs agent-file checks, types, lint, formatting, unit tests,
-PostgreSQL integration tests, production build and browser tests. Stop `pnpm dev`
-before running it. Tests use synthetic inputs in isolated disposable schemas;
-they do not overwrite real collected data or call casino sites.
+Natural next steps would be a durable scheduled worker with bounded concurrency, stronger
+production auth/RBAC, object storage for larger immutable archives, and evaluation-backed
+LLM assistance that can suggest observations but cannot publish them.
 
-Read [source algorithm](docs/real-sources.md), [architecture](docs/architecture.md),
-[walkthrough](docs/demo.md) and [CI/CD boundaries](docs/deployment.md).
-Agent configuration: [project contract](AGENTS.md), [Claude entry point](CLAUDE.md),
-[feature delivery skill](.claude/skills/feature-delivery/SKILL.md).
+## License and source-use note
 
-## AI-assisted workflow
-
-Three project agents (`researcher`, `data-integrity-auditor`, `code-reviewer`) live in
-`.claude/agents/` and have read-only tools (`Read, Glob, Grep`). Only the main session
-edits code. Two skills, started manually in Claude Code:
-
-- `/mission-control <task>` — parallel read-only investigation, consolidated findings,
-  then a stop for the owner's approval.
-- `/feature-delivery <task>` — plan, implementation, independent review, gates, run note.
-
-`.claude/settings.json` denies reading `.env` files and keys, `git push` and destructive
-commands. This is a guard, not a complete security boundary. Run notes follow
-`docs/ai-workflow/runs/_TEMPLATE.md`; `pnpm agents:check` validates the configuration
-files (it does not prove that agents ran).
-
-Claude Code requires separate installation/authentication. These configuration files
-do not prove a Claude session ran. The source collector currently uses deterministic
-parsers, not a live LLM. AI-assisted code development and runtime data extraction
-are separate workflows. Actual engineering evidence is under `docs/ai-workflow/runs`.
-
-A GitHub remote may be configured as `origin`; no public deployment, affiliate
-partnership or paid service is configured, and no green CI run is claimed here.
+No open-source license has been selected yet. Add one before accepting external
+contributions or presenting the repository as reusable software. Directory facts are
+attributed to iGaming Ontario; commercial reuse of source material requires a rights
+review. See the source-use section in [`docs/architecture.md`](docs/architecture.md).

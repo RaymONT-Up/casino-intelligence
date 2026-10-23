@@ -1,3 +1,4 @@
+import { describeCaptureError } from "./errors";
 import { assertPublicTarget } from "./network";
 import { sourceDefinitions, type SourceId, type Observation } from "./model";
 export async function fetchSource(id: SourceId): Promise<Observation> {
@@ -69,7 +70,7 @@ export async function fetchSource(id: SourceId): Promise<Observation> {
       httpStatus: 0,
       method: "http-html/v1",
       redirects,
-      error: error instanceof Error ? error.message : "Capture failed",
+      error: describeCaptureError(error, "Capture failed"),
     };
   }
 }
@@ -146,7 +147,7 @@ async function fetchRenderedTerms(): Promise<Observation> {
       httpStatus: 0,
       method: "playwright-chromium/northstar-v1",
       redirects: [],
-      error: error instanceof Error ? error.message : "Browser capture failed",
+      error: describeCaptureError(error, "Browser capture failed"),
     };
   } finally {
     await browser?.close();
